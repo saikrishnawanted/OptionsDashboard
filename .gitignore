@@ -1,0 +1,30 @@
+# Local credentials and account data must never be committed.
+.local/
+.env
+.env.*
+!.env.example
+env.txt
+*.dpapi
+*.sqlite
+*.sqlite3
+*.db
+*.sqlite3-*
+*.pem
+*.key
+credentials*.json
+secrets*.json
+
+# Recreated by the launcher.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest-tmp/
+*.log
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+.DS_Store
+Thumbs.db

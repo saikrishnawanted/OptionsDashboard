@@ -88,7 +88,7 @@ def test_live_requires_source_and_arm(engine):
 
 
 def test_schedule_and_sl_rounding():
-    assert SCHEDULE == ["09:18", "09:45", "10:15", "10:45", "11:15", "11:45", "12:15", "12:45"]
+    assert SCHEDULE == ["09:18", "09:45", "10:15", "10:45", "11:15", "11:45", "12:15", "12:45", "13:15", "13:45", "14:15", "14:45"]
     assert levels(100, 20, .05) == (120, 122.4)
     assert levels(100.05, 30, .05) == (130.1, 132.75)
 
@@ -254,7 +254,7 @@ def test_partial_stop_fill_reduces_exit_quantity(engine):
     assert t["status"] == "CLOSED"
 
 
-def test_clock_entries_exact_once_and_1514_exit(engine):
+def test_clock_entries_exact_once_and_1510_exit(engine):
     engine.source = "broker"
     for q in engine.quotes.values():
         q["source"] = "broker"
@@ -268,7 +268,7 @@ def test_clock_entries_exact_once_and_1514_exit(engine):
     asyncio.run(s.step(current.replace(hour=9, minute=45)))
     assert len(run["tranches"]) == 2
     assert run["tranches"][1]["sl"] == 30
-    asyncio.run(s.step(current.replace(hour=15, minute=14)))
+    asyncio.run(s.step(current.replace(hour=15, minute=10)))
     assert all(t["status"] == "CLOSED" for t in run["tranches"])
     assert not run["enabled"]
 

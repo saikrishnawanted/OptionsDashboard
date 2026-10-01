@@ -361,7 +361,7 @@ async def action(action: str, request: Request):
                 from strategy import SCHEDULE
                 count = len(run["tranches"])
                 if count >= len(SCHEDULE):
-                    raise ValueError("All eight demo tranches have been entered for this session.")
+                    raise ValueError(f"All {len(SCHEDULE)} demo tranches have been entered for this session.")
                 await strategy.new_tranche(run, SCHEDULE[count], 20 if count == 0 else 30)
             else:
                 return JSONResponse({"error": "Unknown action."}, status_code=404)

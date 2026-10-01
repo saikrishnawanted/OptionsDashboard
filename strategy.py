@@ -10,7 +10,9 @@ from datetime import datetime
 
 from core import IST, finite, now
 
-SCHEDULE = ["09:18", "09:45", "10:15", "10:45", "11:15", "11:45", "12:15", "12:45"]
+# Entry slots end at 14:45; protection continues until the separate 15:10 exit.
+SCHEDULE = ["09:18", "09:45", "10:15", "10:45", "11:15", "11:45", "12:15", "12:45", "13:15", "13:45", "14:15", "14:45"]
+EXIT_TIME = "15:10"
 LOTS = {"NIFTY": 65, "SENSEX": 20}
 FINAL = {"COMPLETE", "FILLED", "CANCELLED", "REJECTED"}
 ACCEPTED_STOPS = {"TRIGGER PENDING", "OPEN", "COMPLETE", "FILLED"}
@@ -65,7 +67,7 @@ class Strategy:
             if e.mode != "dry" or e.source != "broker" or run:
                 return False
             current = datetime.now(IST)
-            if current.weekday() >= 5 or not "09:15" <= current.strftime("%H:%M") < "15:14":
+            if current.weekday() >= 5 or not "09:15" <= current.strftime("%H:%M") < EXIT_TIME:
                 return False
         if run and run["expiry"] != expiry:
             raise ValueError("The active strategy expiry is fixed for the trading day.")
@@ -342,7 +344,7 @@ class Strategy:
             for tranche in run["tranches"]:
                 for leg in tranche["legs"]:
                     self.engine.instruments.setdefault(leg["instrument"]["key"], leg["instrument"])
-            close_time = run["source"] != "demo" and (current.date().isoformat() > run["date"] or (current.date().isoformat() == run["date"] and current.strftime("%H:%M") >= "15:14"))
+            close_time = run["source"] != "demo" and (current.date().isoformat() > run["date"] or (current.date().isoformat() == run["date"] and current.strftime("%H:%M") >= EXIT_TIME))
             for tranche in run["tranches"]:
                 # Even after actual stop-outs, continue all counterfactual heatmap paths until exit.
                 if close_time:
@@ -357,7 +359,7 @@ class Strategy:
                 continue
             if run["date"] != current.date().isoformat() or (current.weekday() >= 5 and run["source"] == "broker"):
                 continue
-            if run.get("startup_pending") and run["mode"] == "dry" and "09:15" <= current.strftime("%H:%M") < "15:14":
+            if run.get("startup_pending") and run["mode"] == "dry" and "09:15" <= current.strftime("%H:%M") < EXIT_TIME:
                 if any(t["slot"] == SCHEDULE[0] for t in run["tranches"]):
                     run["startup_pending"] = False
                 else:
@@ -439,7 +441,7 @@ class Strategy:
         next_slot = next((slot for slot in SCHEDULE if slot > current.strftime("%H:%M") and not any(t["slot"] == slot for t in tranches)), None)
         return {"enabled": bool(run and run["enabled"]), "error": run["error"] if run else "", "schedule": SCHEDULE,
                 "startup_pending": bool(run and run["enabled"] and run.get("startup_pending")), "next_entry": next_slot if run and run["enabled"] else None,
-                "exit_time": "15:14", "tranches": tranches, "configured": True,
+                "exit_time": EXIT_TIME, "tranches": tranches, "configured": True,
                 "lot_size": LOTS[underlying], "open": self.has_open()}
 
 

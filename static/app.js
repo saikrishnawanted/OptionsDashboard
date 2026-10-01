@@ -20,7 +20,7 @@ async function api(action, data={}) {
 }
 async function perform(fn){try{return await fn();}catch(e){toast(e.message,true);}}
 function heatmap(){
-  const times=['09:18','09:45','10:15','10:45','11:15','11:45','12:15','12:45'];
+  const times=['09:18','09:45','10:15','10:45','11:15','11:45','12:15','12:45','13:15','13:45','14:15','14:45'];
   $('heatmap').innerHTML='<thead><tr><th>SL / TIME</th>'+times.map(t=>'<th>'+t+'</th>').join('')+'<th>TOTAL</th></tr></thead><tbody>'+['Strike','Entry','LTP',...Array.from({length:10},(_,i)=>(i+1)*10+'%'),'Total','Best SL','PnL ₹'].map((label,i)=>'<tr class="'+(i<3?'meta-row':i===13?'total-row':i===14?'best-row':'')+'"><td>'+label+'</td>'+times.map(()=>'<td>—</td>').join('')+'<td>—</td></tr>').join('')+'</tbody>';
 }
 function render(s){
@@ -134,7 +134,7 @@ let strategyAction='';
 function renderStrategy(s) {
   document.querySelector('.strategy-value').textContent=s.enabled?'Running':'Paused';
   document.querySelector('.strategy-value').className='strategy-value '+(s.enabled?'positive':'');
-  document.querySelector('.strategy-value').nextElementSibling.textContent=s.startup_pending?'First dry entry: waiting for fresh ATM ticks':s.enabled?(s.next_entry?'Next '+s.next_entry+' IST · exit 15:14':'Entries complete · exit 15:14'):'Exit 15:14 · protection remains active';
+  document.querySelector('.strategy-value').nextElementSibling.textContent=s.startup_pending?'First dry entry: waiting for fresh ATM ticks':s.enabled?(s.next_entry?'Next '+s.next_entry+' IST · exit '+s.exit_time:'Entries complete · exit '+s.exit_time):'Exit '+s.exit_time+' · protection remains active';
   $('strategy-status').textContent=s.startup_pending?'Waiting for ATM ticks':s.enabled?'Running · '+state.mode.toUpperCase():'Entries paused';
   $('strategy-start').textContent=state.mode==='dry'?'Start dry TBS':'Start live TBS';
   $('strategy-start').disabled=s.enabled||state.halted||!state.contracts.length;

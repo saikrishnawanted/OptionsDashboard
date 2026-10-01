@@ -6,7 +6,7 @@ import pytest
 
 import strategy as strategy_module
 from core import IST
-from strategy import Strategy
+from strategy import SCHEDULE, Strategy
 from test_terminal import engine
 
 
@@ -70,7 +70,7 @@ def test_automatic_entry_never_arms_live_or_bypasses_lock(paper, mode, source, h
     assert not e.armed
 
 
-@pytest.mark.parametrize("current", [datetime(2026, 10, 1, 9, 14, tzinfo=IST), datetime(2026, 10, 1, 15, 14, tzinfo=IST), datetime(2026, 10, 3, 9, 25, tzinfo=IST)])
+@pytest.mark.parametrize("current", [datetime(2026, 10, 1, 9, 14, tzinfo=IST), datetime(2026, 10, 1, 15, 10, tzinfo=IST), datetime(2026, 10, 3, 9, 25, tzinfo=IST)])
 def test_automatic_entry_obeys_session_hours(paper, current):
     e, s, clock = paper
     clock.current = current
@@ -121,7 +121,7 @@ def test_delayed_startup_does_not_stack_same_minute_entry(paper):
     asyncio.run(s.step(clock.current))
     assert [t["sl"] for t in s.runs[0]["tranches"]] == [20, 30]
     assert [t["slot"] for t in s.runs[0]["tranches"]] == ["09:18", "10:15"]
-    asyncio.run(s.step(clock.current.replace(hour=15, minute=14)))
+    asyncio.run(s.step(clock.current.replace(hour=15, minute=10)))
     assert all(t["status"] == "CLOSED" for t in s.runs[0]["tranches"])
     assert not s.runs[0]["enabled"]
     assert all(p["qty"] == 0 for p in e.ledger.positions(e.quotes, "broker"))
@@ -142,6 +142,26 @@ def test_exit_is_idempotent_and_preserves_realized_pnl(paper):
     assert sum(p["realized"] for p in positions) == pytest.approx((99.95 - 90.05 + 99.95 - 95.05) * 20)
     assert s.view("SENSEX")["tranches"][0]["pnl"] == pytest.approx(sum(p["realized"] for p in positions))
     assert not e.broker.calls
+
+
+def test_extended_afternoon_schedule_and_exact_1510_exit(paper):
+    e, s, clock = paper
+    s.start("SENSEX", "DEMO", automatic=True)
+    asyncio.run(s.step(clock.current))
+    for slot in SCHEDULE[1:]:
+        clock.current = clock.current.replace(hour=int(slot[:2]), minute=int(slot[3:]), second=0)
+        asyncio.run(s.step(clock.current))
+        asyncio.run(s.step(clock.current))
+    assert len(s.runs[0]["tranches"]) == 12
+    assert [t["slot"] for t in s.runs[0]["tranches"]][-4:] == ["13:15", "13:45", "14:15", "14:45"]
+    assert all(t["sl"] == 30 for t in s.runs[0]["tranches"][1:])
+    assert s.view("SENSEX")["exit_time"] == "15:10"
+    asyncio.run(s.step(clock.current.replace(hour=15, minute=9)))
+    assert all(t["status"] == "OPEN" for t in s.runs[0]["tranches"])
+    asyncio.run(s.step(clock.current.replace(hour=15, minute=10)))
+    assert all(t["status"] == "CLOSED" for t in s.runs[0]["tranches"])
+    assert not s.runs[0]["enabled"] and not e.broker.calls
+    assert all(p["qty"] == 0 for p in e.ledger.positions(e.quotes, "broker"))
 
 
 def test_chain_route_starts_paper_once_and_controls_protect_open_legs(paper, tmp_path, monkeypatch):

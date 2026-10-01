@@ -46,6 +46,10 @@ Git tracks the application, broker SDK and its license, launchers, tests, docume
 
 ## Heatmap
 
+The intraday P&L chart shows today's terminal-recorded fills for the selected underlying and execution mode, including manual orders and TBS. Use Overall, CE or PE to filter, and toggle realized/unrealized lines. Hover for time and values. Green/red totals and shading show profit/loss in rupees before fees. Open counts refer to contracts with remaining quantity.
+
+Observed history is saved every five seconds in the ignored local ledger and retained for 30 days. Paper, live, demo, underlying and account histories are separate. New orders record account and option-type metadata; older untagged orders use their existing contract metadata/symbol and remain included as legacy terminal fills because their account cannot be determined. No chart history is fabricated for periods before this feature starts. Stale or missing marks and recording interruptions appear as gaps. Live values use confirmed terminal order fills, including confirmed partial fills; external broker trades and overnight positions are outside this intraday chart.
+
 Rows 10–100% are counterfactual per-leg stop-loss scenarios for each actual entry. Each scenario uses the 2% stop-limit buffer and observed ticks; it latches a trigger, tracks an unfilled limit after a gap, and freezes its exit on a fill. It continues after the actual strategy exits via a stop and closes at session exit. Numbers are **combined CE+PE premium points**. Actual P&L is rupees using leg quantities.
 
 **Best SL is hindsight analytics only** and is never used to choose the strategy's stop. A feed outage can miss a threshold crossing; this is not an exchange-tick backtest. No prices or strategy results are invented when the broker feed is absent. A stale position is marked unavailable instead of being represented as current P&L.

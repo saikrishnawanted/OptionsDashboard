@@ -24,7 +24,9 @@ function heatmap(){
   $('heatmap').innerHTML='<thead><tr><th>SL / TIME</th>'+times.map(t=>'<th>'+t+'</th>').join('')+'<th>TOTAL</th></tr></thead><tbody>'+['Strike','Entry','LTP',...Array.from({length:10},(_,i)=>(i+1)*10+'%'),'Total','Best SL','PnL ₹'].map((label,i)=>'<tr class="'+(i<3?'meta-row':i===13?'total-row':i===14?'best-row':'')+'"><td>'+label+'</td>'+times.map(()=>'<td>—</td>').join('')+'<td>—</td></tr>').join('')+'</tbody>';
 }
 function render(s){
+  const chartChanged=!state||[state.mode,state.source,state.selection.underlying].join('|')!==[s.mode,s.source,s.selection.underlying].join('|');
   state=s;
+  if(chartChanged)window.dispatchEvent(new Event('terminal-state'));
   const statusError=connectionError||s.connection_error||'';
   $('connection-error').textContent=statusError;$('connection-error').hidden=!statusError;
   $('clock').textContent=new Date(s.time).toLocaleTimeString('en-GB',{timeZone:'Asia/Kolkata'})+' IST';

@@ -27,6 +27,7 @@ from broker import Broker
 from core import Engine, IST, Ledger, finite, now
 from vault import Vault
 from strategy import Strategy
+from pnl import PnlHistory
 
 events = []
 engine = None
@@ -36,6 +37,7 @@ lock = asyncio.Lock()
 session_token = secrets.token_urlsafe(32)
 vault = Vault(LOCAL / "credentials.dpapi")
 ledger = Ledger(LOCAL / "terminal.sqlite3")
+pnl_history = PnlHistory(ledger)
 
 
 def event(message, disarm=False):
@@ -150,6 +152,12 @@ async def strategy_loop():
         except Exception:
             strategy.pause()
             event("Strategy management encountered an error. Check broker positions immediately.", True)
+        try:
+            async with lock:
+                pnl_history.sample(engine, datetime.now(IST))
+        except Exception:
+            # Analytics must never pause protection or trading management.
+            event("P&L history could not be recorded. Current positions remain available.")
         await asyncio.sleep(1)
 
 
@@ -189,6 +197,13 @@ async def bootstrap():
 @app.get("/api/health")
 async def health():
     return {"application": "OptionsDashboard", "workspace": str(ROOT), "data_directory": str(LOCAL.resolve())}
+
+
+@app.get("/api/pnl")
+async def pnl_view():
+    async with lock:
+        current = datetime.now(IST)
+        return pnl_history.view(engine, current, selection["underlying"])
 
 
 @app.get("/api/export")

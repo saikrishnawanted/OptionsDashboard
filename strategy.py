@@ -134,6 +134,7 @@ class Strategy:
         leg[role + "_id"] = order_id
         self.save()
         order = {"id": order_id, "mode": run["mode"], "source": run["source"], "strategy": run["id"],
+                 "option_type": inst["option_type"], "account_key": run.get("account_key"),
                  "key": inst["key"], "symbol": inst["symbol"], "underlying": inst["underlying"],
                  "side": side, "qty": qty, "price": price, "trigger": trigger, "order_type": kind,
                  "time": now(), "created": time.time(), "status": "SUBMITTING", "filled_qty": 0}

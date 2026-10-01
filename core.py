@@ -138,6 +138,7 @@ class Engine:
         if abs(price / tick - round(price / tick)) > 0.00001:
             raise ValueError(f"Price must follow the broker tick size of {tick}.")
         order = {"id": client_id, "mode": self.mode, "source": self.source, "key": key,
+                 "option_type": inst["option_type"], "account_key": self.account_key,
                  "symbol": inst["symbol"], "underlying": inst["underlying"], "side": side,
                  "qty": qty, "price": price, "time": now(), "status": "SUBMITTING", "filled_qty": 0}
         if self.mode == "dry":

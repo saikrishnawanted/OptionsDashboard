@@ -62,6 +62,8 @@ class PnlHistory:
         self.ledger = ledger
         self.db = ledger.db
         self.db.execute("CREATE TABLE IF NOT EXISTS pnl_history (scope TEXT, stamp INTEGER, payload TEXT NOT NULL, PRIMARY KEY(scope, stamp))")
+        # Daily results outlive the detailed chart's 30-day retention window.
+        self.db.execute("CREATE TABLE IF NOT EXISTS daily_performance (scope TEXT PRIMARY KEY, stamp INTEGER, payload TEXT NOT NULL)")
         self.db.commit()
         self.last = {}
         self.cleaned = None
@@ -84,6 +86,8 @@ class PnlHistory:
                 if has_fills:
                     self.db.execute("INSERT OR REPLACE INTO pnl_history VALUES (?, ?, ?)",
                         (scope, stamp, json.dumps(values, allow_nan=False)))
+                    self.db.execute("INSERT OR REPLACE INTO daily_performance VALUES (?, ?, ?)",
+                        (scope, stamp, json.dumps(values, allow_nan=False)))
                 self.last[scope] = stamp
         if self.cleaned != current.date():
             self.db.execute("DELETE FROM pnl_history WHERE stamp < ?", (int((current - timedelta(days=30)).timestamp()),))
@@ -98,3 +102,43 @@ class PnlHistory:
             current.date().isoformat(), engine.mode, engine.source, underlying, engine.account_key)
         return {"date": current.date().isoformat(), "mode": engine.mode, "source": engine.source,
                 "underlying": underlying, "points": points, "current": values}
+
+    def performance(self, engine, current):
+        """Backfill closed legacy days from fills, never invent old open marks."""
+        today = current.date().isoformat()
+        groups = {}
+        for order in self.ledger.orders():
+            if not order.get("filled_qty") or order.get("fill_price") is None:
+                continue
+            account = order.get("account_key")
+            if engine.account_key and account and account != engine.account_key:
+                continue
+            key = (order["time"][:10], order["mode"], order["source"], order["underlying"], account)
+            groups.setdefault(key, []).append(order)
+        saved = {tuple(json.loads(scope)): (stamp, json.loads(payload)) for scope, stamp, payload in
+                 self.db.execute("SELECT scope, stamp, payload FROM daily_performance")}
+        # Recover existing chart samples created before the daily archive existed.
+        for scope, stamp, payload in self.db.execute("SELECT scope, stamp, payload FROM pnl_history ORDER BY stamp"):
+            key = tuple(json.loads(scope))
+            if key not in saved or stamp > saved[key][0]:
+                saved[key] = (stamp, json.loads(payload))
+        rows = []
+        for key in set(groups) | set(saved):
+            day, mode, source, underlying, account = key
+            if engine.account_key and account and account != engine.account_key:
+                continue
+            quotes = engine.quotes if day == today and source == engine.source else {}
+            values, has = totals(groups.get(key, []), engine.instruments, quotes, day, mode, source, underlying, account)
+            stamp, observed = saved.get(key, (None, None))
+            if day != today and observed and (not has or values["OVERALL"]["open"]):
+                values = observed
+            elif has:
+                stamp = int(current.timestamp()) if day == today else stamp
+            status = "Today" if day == today else "Closed" if values["OVERALL"]["open"] == 0 else "Last observed / open"
+            if day < today:
+                self.db.execute("INSERT OR REPLACE INTO daily_performance VALUES (?, ?, ?)",
+                    (json.dumps(list(key)), stamp, json.dumps(values, allow_nan=False)))
+            rows.append({"date": day, "mode": mode, "source": source, "underlying": underlying,
+                         "values": values, "status": status, "observed_at": stamp})
+        self.db.commit()
+        return {"today": today, "rows": sorted(rows, key=lambda r: (r["date"], r["underlying"], r["mode"]), reverse=True)}

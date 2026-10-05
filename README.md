@@ -85,3 +85,7 @@ Python 3.12, FastAPI, Uvicorn, plain HTML/CSS/JavaScript. No frontend build step
 ```
 
 For an isolated smoke test, run `Start-OptionsDashboard.ps1 -Port 8766 -NoBrowser -DataDirectory <temporary-folder>`. Stop that test instance with `Stop-OptionsDashboard.ps1 -Port 8766`. Do not authenticate a test instance alongside an active trading session. `NEO_SDK_PATH` can override the bundled SDK for development.
+
+## Daily Performance
+
+Net, realized and unrealized P&L cards and the order book reset by IST calendar day without deleting fills. The Daily Performance tab preserves daily results by market, mode and feed in the ignored local ledger, beyond the chart's 30-day retention. Closed legacy days are recovered from recorded fills; historical open days use saved observations or show unavailable marks. Positions and protection still retain prior open quantities; a date reset never closes or deletes positions. Live metrics cover terminal-confirmed fills only.

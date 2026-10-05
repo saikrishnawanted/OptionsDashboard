@@ -41,7 +41,7 @@ class Ledger:
         items = [json.loads(row[0]) for row in self.db.execute("SELECT payload FROM orders ORDER BY rowid")]
         return [o for o in items if mode is None or o["mode"] == mode]
 
-    def positions(self, quotes, source):
+    def positions(self, quotes, source, realized_day=None):
         positions = {}
         for order in self.orders("dry"):
             if order.get("source") != source or order["status"] != "FILLED":
@@ -55,7 +55,9 @@ class Ledger:
             if old == 0 or old * delta > 0:
                 p["average"] = (abs(old) * p["average"] + abs(delta) * price) / (abs(old) + abs(delta))
             else:
-                p["realized"] += min(abs(old), abs(delta)) * (price - p["average"]) * (1 if old > 0 else -1)
+                # Keep cost basis and carried quantity, but scope displayed profits to today.
+                if realized_day is None or order.get("time", "")[:10] == realized_day:
+                    p["realized"] += min(abs(old), abs(delta)) * (price - p["average"]) * (1 if old > 0 else -1)
                 if abs(delta) > abs(old):
                     p["average"] = price
                 elif abs(delta) == abs(old):

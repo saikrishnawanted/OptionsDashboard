@@ -48,13 +48,13 @@ function render(s){
     $('expiry').value=s.selection.expiry;
   }
   $('pnl-mode').textContent=s.mode==='dry'?'PAPER':'LIVE';
-  const realized=s.positions.reduce((a,p)=>a+p.realized,0), unknown=s.positions.some(p=>p.qty&&(p.unrealized==null||p.stale));
-  const unrealized=s.positions.reduce((a,p)=>a+(p.unrealized||0),0);
+  const realized=s.session_pnl?.realized??null, unknown=s.session_pnl?.unrealized==null;
+  const unrealized=s.session_pnl?.unrealized||0;
   for(const [id,v] of [['net-pnl',realized+unrealized],['realized',realized],['unrealized',unrealized]]){
-    $(id).textContent=s.mode==='live'||(unknown&&id!=='realized')?'—':money(v); $(id).className=signedClass(v);
+    $(id).textContent=(unknown&&id!=='realized')?'—':money(v); $(id).className=signedClass(v);
   }
-  $('pnl-note').textContent=s.mode==='live'?'See broker position quantities below':unknown?'Waiting for fresh position prices':'Before brokerage & taxes';
-  $('open-count').textContent=s.positions.filter(p=>p.qty).length+' open positions';
+  $('pnl-note').textContent=!s.session_pnl?'Update ready · restart after strategy exit':unknown?'Today · waiting for fresh prices':'Today IST · before brokerage & taxes';
+  $('open-count').textContent=(s.session_pnl?.open||0)+' today’s open contracts';
   $('chain-badge').textContent=s.source==='demo'?'Synthetic feed':s.contracts.length?'Broker WebSocket':'Waiting for feed';
   $('chain-empty').hidden=s.contracts.length>0;
   const rows=new Map();
@@ -106,7 +106,7 @@ function connectStream(){
   socket.onmessage=e=>render(JSON.parse(e.data));
   socket.onclose=()=>{$('stream-dot').className='';$('stream-label').textContent='Terminal disconnected · reconnecting';$('place-order').disabled=true;clearTimeout(reconnectTimer);reconnectTimer=setTimeout(connectStream,2000);};
 }
-document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('nav-active',x===b));['workspace','orders','activity'].forEach(t=>$(t+'-view').hidden=t!==b.dataset.tab);});
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('nav-active',x===b));['workspace','orders','performance','activity'].forEach(t=>$(t+'-view').hidden=t!==b.dataset.tab);if(b.dataset.tab==='performance')perform(loadPerformance);});
 document.querySelectorAll('[data-market]').forEach(b=>b.onclick=()=>perform(async()=>{await api('select',{underlying:b.dataset.market});if(state.authenticated)await loadExpiries();}));
 document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 ['connect-open','chain-connect'].forEach(id=>$(id).onclick=showConnection);
@@ -169,3 +169,13 @@ $('strategy-demo-entry').onclick=()=>perform(()=>api('strategy-demo-entry'));
 $('strategy-confirm-action').onclick=()=>perform(async()=>{await api(strategyAction,{confirm:$('strategy-confirm').value});$('strategy-dialog').close();});
 heatmap();
 perform(async()=>{const r=await fetch('/api/bootstrap').then(r=>r.json());token=r.token;render(r.state);connectStream();if(r.state.authenticated&&!r.state.contracts.length)await loadExpiries();});
+
+async function loadPerformance(){
+  const response=await fetch('/api/performance');
+  if(!response.ok){$('performance-empty').hidden=false;$('performance-empty').textContent='Daily performance needs the updated server. Restart after all strategy legs have closed.';return;}
+  const data=await response.json();
+  const cell=v=>'<td class="'+signedClass(v)+'">'+money(v)+'</td>';
+  $('performance-body').innerHTML=data.rows.map(r=>'<tr><td>'+esc(r.date)+'</td><td>'+esc(r.underlying)+'</td><td>'+esc(r.mode==='dry'?'PAPER':'LIVE')+'</td><td>'+esc(r.source.toUpperCase())+'</td>'+cell(r.values.OVERALL.realized)+cell(r.values.OVERALL.unrealized)+cell(r.values.OVERALL.total)+cell(r.values.CE.total)+cell(r.values.PE.total)+'<td>'+esc(r.status)+'</td></tr>').join('');
+  $('performance-empty').hidden=!!data.rows.length;$('performance-empty').textContent='No daily performance recorded yet.';
+}
+$('performance-refresh').onclick=()=>perform(loadPerformance);

@@ -112,7 +112,16 @@ async def demo_feed():
 def snapshot():
     if engine.armed and not broker.ready:
         engine.disarm()
-    positions = ledger.positions(engine.quotes, engine.source) if engine.mode == "dry" else []
+    today = datetime.now(IST).date().isoformat()
+    positions = ledger.positions(engine.quotes, engine.source, realized_day=today) if engine.mode == "dry" else []
+    today_keys = {o["key"] for o in ledger.orders(engine.mode) if o.get("time", "")[:10] == today and o.get("source") == engine.source}
+    positions = [p for p in positions if p["qty"] or p["key"] in today_keys]
+    from pnl import totals
+    daily = [totals(ledger.orders(engine.mode), engine.instruments, engine.quotes, today,
+             engine.mode, engine.source, market, engine.account_key)[0]["OVERALL"] for market in ("NIFTY", "SENSEX")]
+    session_pnl = {"date": today, "realized": sum(v["realized"] for v in daily),
+                   "unrealized": None if any(v["unrealized"] is None for v in daily) else sum(v["unrealized"] for v in daily),
+                   "open": sum(v["open"] for v in daily)}
     contracts = []
     for key, inst in engine.instruments.items():
         if inst["underlying"] != selection["underlying"] or inst["expiry"] != selection["expiry"]:
@@ -123,7 +132,8 @@ def snapshot():
             "halted": engine.halted, "connected": broker.market_connected, "authenticated": broker.authenticated,
             "broker_ready": broker.ready, "connection_error": broker.reconciliation_error,
             "saved_credentials": vault.path.exists(), "selection": selection,
-            "contracts": contracts, "positions": positions, "orders": ledger.orders(engine.mode)[-100:][::-1],
+            "contracts": contracts, "positions": positions, "session_pnl": session_pnl,
+            "orders": [o for o in ledger.orders(engine.mode) if o["time"][:10] == today][-100:][::-1],
             "broker_positions": [{k: row.get(k) for k in ("trdSym", "exSeg", "prod", "cfBuyQty", "cfSellQty", "flBuyQty", "flSellQty", "buyAmt", "sellAmt")}
                                  for row in broker.positions],
             "events": events[-12:][::-1], "strategy": strategy.view(selection["underlying"]),
@@ -204,6 +214,12 @@ async def pnl_view():
     async with lock:
         current = datetime.now(IST)
         return pnl_history.view(engine, current, selection["underlying"])
+
+
+@app.get("/api/performance")
+async def daily_performance():
+    async with lock:
+        return pnl_history.performance(engine, datetime.now(IST))
 
 
 @app.get("/api/export")

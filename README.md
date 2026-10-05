@@ -93,3 +93,9 @@ Net, realized and unrealized P&L cards and the order book reset by IST calendar 
 ## Linux server and remote access
 
 See [Ubuntu deployment instructions](deploy/README.md). The server can be accessed through its public IP with a trusted HTTPS certificate and a separate dashboard login. A single worker binds to loopback behind an authenticated Nginx proxy. Linux credential storage uses an owner-only Fernet key; Windows DPAPI credentials cannot be migrated directly. Enter broker credentials anew. Server restarts begin in dry mode with live entry disarmed.
+
+### Broker terminal
+
+Open **Broker terminal** after connecting Kotak Neo to view available trading funds, margin used, collateral, holdings value and P&L, and all broker positions including trades placed outside OptionsDashboard. Funds and holdings refresh every 30 seconds while the tab is open; **Refresh account** requests a new snapshot immediately. Positions use the existing 10-second reconciliation. Unavailable values display as a dash, and failed refreshes retain the previous snapshot with an error and its original timestamp.
+
+Create named watchlists, select an exchange, and search for instruments to add. You can rename lists and remove instruments or lists. Each broker account can save up to 10 lists of 50 instruments in the existing terminal database. Watchlists survive restarts; prices refresh from broker REST quotes and are marked when unavailable or stale. The account overview always displays broker data independently of paper/live execution mode.

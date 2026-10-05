@@ -28,6 +28,7 @@ from core import Engine, IST, Ledger, finite, now
 from vault import Vault
 from strategy import Strategy
 from pnl import PnlHistory
+from terminal import BrokerTerminal
 from remote import RemoteAccess
 
 events = []
@@ -39,6 +40,7 @@ session_token = secrets.token_urlsafe(32)
 vault = Vault(LOCAL / "credentials.dpapi")
 ledger = Ledger(LOCAL / "terminal.sqlite3")
 pnl_history = PnlHistory(ledger)
+broker_terminal = BrokerTerminal(ledger)
 
 
 def event(message, disarm=False):
@@ -243,6 +245,12 @@ async def health():
     return {"application": "OptionsDashboard", "workspace": str(ROOT), "data_directory": str(LOCAL.resolve())}
 
 
+@app.get("/api/broker-terminal")
+async def broker_terminal_view():
+    await broker_terminal.refresh(engine)
+    return broker_terminal.view(engine)
+
+
 @app.get("/api/pnl")
 async def pnl_view():
     async with lock:
@@ -392,6 +400,23 @@ async def action(action: str, request: Request):
                 result = await engine.order(data)
                 event(f"{result['mode'].upper()} {result['symbol']} · {result['status']}")
                 return {"order": result, "state": snapshot()}
+            elif action == "terminal-refresh":
+                await broker_terminal.refresh(engine, force=True)
+                if broker.authenticated:
+                    await broker.reconcile()
+                return {"terminal": broker_terminal.view(engine), "state": snapshot()}
+            elif action == "terminal-search":
+                return {"results": await broker_terminal.search(broker, data.get("exchange"), data.get("query", ""))}
+            elif action == "watchlist-save":
+                if not broker.authenticated:
+                    raise ValueError("Connect the broker before editing watchlists.")
+                broker_terminal.save_watchlist(engine.account_key, data)
+                return {"terminal": broker_terminal.view(engine)}
+            elif action == "watchlist-delete":
+                if not broker.authenticated:
+                    raise ValueError("Connect the broker before editing watchlists.")
+                broker_terminal.delete_watchlist(engine.account_key, data.get("id"))
+                return {"terminal": broker_terminal.view(engine)}
             elif action == "reconcile":
                 await broker.reconcile()
                 event("Broker order book and positions reconciled.")

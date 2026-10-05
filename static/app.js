@@ -90,6 +90,7 @@ function render(s){
   $('saved-wrap').hidden=!s.saved_credentials;
   updateTicket(false);
   if(s.strategy)renderStrategy(s.strategy);
+  window.dispatchEvent(new Event('broker-state'));
 }
 function updateTicket(setPrice=false){
   const c=state?.contracts.find(c=>c.key===selected);
@@ -105,7 +106,7 @@ function connectStream(){
   socket.onmessage=e=>render(JSON.parse(e.data));
   socket.onclose=()=>{$('stream-dot').className='';$('stream-label').textContent='Terminal disconnected · reconnecting';$('place-order').disabled=true;clearTimeout(reconnectTimer);reconnectTimer=setTimeout(connectStream,2000);};
 }
-document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('nav-active',x===b));['workspace','orders','performance','activity'].forEach(t=>$(t+'-view').hidden=t!==b.dataset.tab);if(b.dataset.tab==='performance')perform(loadPerformance);});
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('nav-active',x===b));['workspace','broker','orders','performance','activity'].forEach(t=>$(t+'-view').hidden=t!==b.dataset.tab);if(b.dataset.tab==='performance')perform(loadPerformance);});
 document.querySelectorAll('[data-market]').forEach(b=>b.onclick=()=>perform(async()=>{await api('select',{underlying:b.dataset.market});if(state.authenticated)await loadExpiries();}));
 document.querySelectorAll('.close-dialog').forEach(b=>b.onclick=()=>b.closest('dialog').close());
 ['connect-open','chain-connect'].forEach(id=>$(id).onclick=showConnection);

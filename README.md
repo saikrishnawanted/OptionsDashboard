@@ -89,3 +89,7 @@ For an isolated smoke test, run `Start-OptionsDashboard.ps1 -Port 8766 -NoBrowse
 ## Daily Performance
 
 Net, realized and unrealized P&L cards and the order book reset by IST calendar day without deleting fills. The Daily Performance tab preserves daily results by market, mode and feed in the ignored local ledger, beyond the chart's 30-day retention. Closed legacy days are recovered from recorded fills; historical open days use saved observations or show unavailable marks. Positions and protection still retain prior open quantities; a date reset never closes or deletes positions. Live metrics cover terminal-confirmed fills only.
+
+## Linux server and remote access
+
+See [Ubuntu deployment instructions](deploy/README.md). The server can be accessed through its public IP with a trusted HTTPS certificate and a separate dashboard login. A single worker binds to loopback behind an authenticated Nginx proxy. Linux credential storage uses an owner-only Fernet key; Windows DPAPI credentials cannot be migrated directly. Enter broker credentials anew. Server restarts begin in dry mode with live entry disarmed.

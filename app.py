@@ -28,6 +28,7 @@ from core import Engine, IST, Ledger, finite, now
 from vault import Vault
 from strategy import Strategy
 from pnl import PnlHistory
+from remote import RemoteAccess
 
 events = []
 engine = None
@@ -171,19 +172,22 @@ async def strategy_loop():
         await asyncio.sleep(1)
 
 
+remote_access = RemoteAccess(os.environ.get("TERMINAL_REMOTE_ORIGIN", ""), os.environ.get("TERMINAL_PROXY_TOKEN", ""))
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"])
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=["127.0.0.1", "localhost", "testserver"] + ([remote_access.host] if remote_access.host else []))
 
 
 def local_origin(origin, host):
-    return origin == f"http://{host}" and host.split(":")[0] in ("127.0.0.1", "localhost", "testserver")
+    return remote_access.allowed_origin(origin, host)
 
 
 @app.middleware("http")
 async def protect(request: Request, call_next):
+    if not remote_access.authorized_proxy(request.headers, request.client.host if request.client else None):
+        return JSONResponse({"error": "Sign in through the configured HTTPS gateway."}, status_code=403)
     if request.method not in ("GET", "HEAD"):
         if not local_origin(request.headers.get("origin"), request.headers.get("host", "")):
-            return JSONResponse({"error": "Only the local terminal can change trading state."}, status_code=403)
+            return JSONResponse({"error": "Trading changes must come from the configured terminal address."}, status_code=403)
         if not secrets.compare_digest(request.headers.get("x-terminal-token", ""), session_token):
             return JSONResponse({"error": "Reload the terminal to renew its session."}, status_code=403)
     response = await call_next(request)
@@ -406,6 +410,9 @@ async def action(action: str, request: Request):
 
 @app.websocket("/ws")
 async def websocket(ws: WebSocket):
+    if not remote_access.authorized_proxy(ws.headers, ws.client.host if ws.client else None):
+        await ws.close(code=1008)
+        return
     if not local_origin(ws.headers.get("origin"), ws.headers.get("host", "")):
         await ws.close(code=1008)
         return

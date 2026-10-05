@@ -58,7 +58,37 @@ def tick(key, quote):
 
 
 def order_update(row):
-    for order in ledger.orders("live"):
+    orders = [o for o in ledger.orders("live") if o.get("account_key") == engine.account_key]
+    matched = any(str(row.get("nOrdNo", "")) == o.get("broker_id") or row.get("GuiOrdId") == o["id"] for o in orders)
+    if not matched and engine.account_key and row.get("nOrdNo"):
+        symbol = str(row.get("trdSym") or row.get("sym") or "")
+        underlying = next((u for u in ("NIFTY", "SENSEX") if symbol.startswith(u)), None)
+        option = next((s for s in ("CE", "PE") if symbol.endswith(s)), None)
+        exchange, token = row.get("exSeg"), row.get("tok")
+        stamp = str(row.get("ordDtTm") or "")
+        parsed = None
+        for fmt in ("%d-%b-%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"):
+            try:
+                parsed = datetime.strptime(stamp, fmt).replace(tzinfo=IST)
+                break
+            except ValueError:
+                pass
+        if parsed is None:
+            try:
+                parsed = datetime.fromisoformat(stamp)
+                parsed = parsed.replace(tzinfo=IST) if parsed.tzinfo is None else parsed.astimezone(IST)
+            except ValueError:
+                return  # Do not invent a trading date for an incomplete update.
+        if not underlying or not option or not exchange or not token or row.get("trnsTp") not in ("B", "S"):
+            return
+        order = {"id": f"broker:{engine.account_key}:{row['nOrdNo']}", "broker_id": str(row["nOrdNo"]),
+                 "mode": "live", "source": "broker", "account_key": engine.account_key,
+                 "key": f"{exchange}|{token}", "symbol": symbol, "underlying": underlying,
+                 "option_type": option, "side": row["trnsTp"], "qty": int(finite(row.get("qty", 0))),
+                 "time": parsed.isoformat(timespec="seconds"), "status": "SUBMITTED", "filled_qty": 0,
+                 "external": True}
+        orders.append(order)
+    for order in orders:
         if str(row.get("nOrdNo", "")) != order.get("broker_id") and row.get("GuiOrdId") != order["id"]:
             continue
         if row.get("nOrdNo"):
@@ -343,7 +373,7 @@ async def action(action: str, request: Request):
                 dry_startup_available = False
                 event(f"Execution set to {engine.mode.upper()}. Live entry is disarmed.")
             elif action == "arm":
-                engine.arm(data.get("phrase"))
+                engine.arm()
                 event("Live order entry armed for this process session.")
             elif action == "disarm":
                 engine.disarm()
@@ -384,8 +414,6 @@ async def action(action: str, request: Request):
                 strategy.pause()
             elif action == "strategy-exit":
                 dry_startup_available = False
-                if engine.mode == "live" and data.get("confirm") != "EXIT LIVE TBS":
-                    raise ValueError("Type EXIT LIVE TBS to close all tracked live strategy legs.")
                 await strategy.close_all()
             elif action == "strategy-demo-entry":
                 if engine.source != "demo" or engine.mode != "dry":

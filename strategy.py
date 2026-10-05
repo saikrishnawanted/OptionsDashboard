@@ -55,8 +55,8 @@ class Strategy:
             raise ValueError("Connect a feed and unlock order entry first.")
         if not expiry:
             raise ValueError("Load the chosen expiry first.")
-        if e.mode == "live" and (not e.armed or not e.broker.ready or confirmation != "START LIVE TBS"):
-            raise ValueError("Arm live orders and type START LIVE TBS to start real automatic trading.")
+        if e.mode == "live" and (not e.armed or not e.broker.ready):
+            raise ValueError("Enable live orders before starting real automatic trading.")
         if any(o["status"] in ("UNKNOWN", "SUBMITTING") for o in e.ledger.orders("live")) and e.mode == "live":
             raise ValueError("Resolve uncertain live orders before starting automation.")
         today = datetime.now(IST).date().isoformat()

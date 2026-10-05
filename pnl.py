@@ -9,7 +9,7 @@ from core import IST
 
 def totals(orders, instruments, quotes, day, mode, source, underlying, account=None):
     positions = {}
-    for order in orders:
+    for order in sorted(orders, key=lambda o: o.get("time", "")):
         if (order.get("mode") != mode or order.get("source") != source
                 or order.get("underlying") != underlying or order.get("time", "")[:10] != day
                 or (order.get("account_key") and order["account_key"] != account)):

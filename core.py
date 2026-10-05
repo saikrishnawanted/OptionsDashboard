@@ -87,9 +87,7 @@ class Engine:
     def disarm(self):
         self.armed = False
 
-    def arm(self, phrase):
-        if phrase != "ENABLE LIVE":
-            raise ValueError("Type ENABLE LIVE to arm live orders.")
+    def arm(self, phrase=None):
         if self.mode != "live" or self.source != "broker" or not self.broker.ready:
             raise ValueError("Connect the broker and select live mode first.")
         if self.halted:
@@ -157,8 +155,6 @@ class Engine:
         current = datetime.now(IST)
         if current.weekday() >= 5 or not "09:15" <= current.strftime("%H:%M") < "15:30":
             raise ValueError("Live orders are limited to regular weekday market hours in IST.")
-        if request.get("confirm") != "PLACE LIVE ORDER":
-            raise ValueError("Confirm the live order explicitly.")
         if any(o["status"] in ("SUBMITTING", "UNKNOWN") for o in self.ledger.orders("live")):
             self.disarm()
             raise ValueError("Reconcile the uncertain live order before placing another.")

@@ -36,7 +36,7 @@ function render(s){
   $('feed-state').className=s.source==='demo'?'muted':s.connected?'positive':'muted';
   $('contracts-count').textContent=s.contracts.length||'—';
   $('dry-mode').classList.toggle('active',s.mode==='dry'); $('live-mode').classList.toggle('active',s.mode==='live');
-  $('arm-open').textContent=s.armed?'Disarm live':'Arm live'; $('arm-open').disabled=s.mode!=='live';
+  $('arm-open').textContent=s.armed?'Disable live':'Enable live'; $('arm-open').disabled=s.mode!=='live';
   $('halt').textContent=s.halted?'↻ Unlock orders':'■ Lock orders';
   $('start-demo').hidden=s.source==='demo'||s.authenticated;
   $('notice-text').textContent=s.halted?'Order entry locked. Existing broker orders and positions remain open.':s.source==='demo'?'DEMO DATA · Synthetic prices and illustrative lot sizes. Paper trades only; no broker orders.':s.mode==='live'?(s.armed?'LIVE ARMED · Orders submitted here use real funds. TBS status is shown below.':'LIVE DISARMED · Connect the broker and arm live entry before submitting orders.'):s.authenticated?'DRY EXECUTION · Broker WebSocket prices, local simulated fills. No real orders in dry mode.':'Your workspace is ready. Connect Kotak Neo for market data, or explore with synthetic demo prices.';
@@ -69,7 +69,6 @@ function render(s){
     if(s.contracts.some(c=>c.key===selected))$('contract').value=selected;else selected='';
   }
   $('ticket-mode').textContent=s.mode.toUpperCase(); $('ticket-mode').className=s.mode==='dry'?'dry-badge':'dry-badge live-badge';
-  $('live-confirm-wrap').hidden=s.mode!=='live';
   $('place-order').innerHTML=(s.mode==='dry'?'Place dry order':'Place live order')+' <span>→</span>';
   $('place-order').disabled=busy||s.halted||!selected||(s.mode==='live'&&!s.armed);
   $('execution-note').textContent=s.mode==='dry'?'Paper execution only. Uses marketable limits with 0.05% simulated slippage. Fees are excluded.':'Sends a real MIS limit order. Submission is not a fill. Follow its status in the order book.';
@@ -115,8 +114,8 @@ $('start-demo').onclick=()=>perform(()=>api('demo'));
 $('dry-mode').onclick=()=>perform(()=>api('mode',{mode:'dry'}));
 $('live-mode').onclick=()=>perform(()=>api('mode',{mode:'live'}));
 $('halt').onclick=()=>perform(()=>api(state.halted?'resume':'halt'));
-$('arm-open').onclick=()=>state.armed?perform(()=>api('disarm')):$('arm-dialog').showModal();
-$('arm-form').onsubmit=e=>{e.preventDefault();perform(async()=>{await api('arm',{phrase:$('arm-phrase').value});$('arm-dialog').close();$('arm-phrase').value='';});};
+$('arm-open').onclick=()=>{if(state.armed)return perform(()=>api('disarm'));$('arm-error').hidden=true;$('arm-dialog').showModal();};
+$('arm-form').onsubmit=async e=>{e.preventDefault();$('arm-error').hidden=true;try{await api('arm');$('arm-dialog').close();}catch(error){$('arm-error').textContent=error.message;$('arm-error').hidden=false;}};
 $('use-saved').onchange=()=>$('credential-fields').hidden=$('use-saved').checked;
 async function loadExpiries(){const r=await api('expiries');$('expiry').innerHTML='<option value="">Select expiry</option>'+r.expiries.map(e=>'<option>'+esc(e)+'</option>').join('');if(!r.expiries.length){const message='Broker returned no available expiries for '+state.selection.underlying+'.';connectionMessage(message);throw new Error(message);}$('expiry').value=r.expiries[0];await api('chain',{expiry:r.expiries[0]});}
 $('load-chain').onclick=()=>perform(()=>state.authenticated?loadExpiries():Promise.resolve(showConnection()));
@@ -131,7 +130,7 @@ $('contract').onchange=()=>chooseContract($('contract').value);
 ['lots','price'].forEach(id=>$(id).oninput=()=>updateTicket());
 function changeSide(s){side=s;$('buy-side').className=s==='B'?'buy-selected':'';$('sell-side').className=s==='S'?'sell-selected':'';updateTicket(true);}
 $('buy-side').onclick=()=>changeSide('B');$('sell-side').onclick=()=>changeSide('S');
-$('order-form').onsubmit=e=>{e.preventDefault();if(busy)return;perform(async()=>{busy=true;$('place-order').disabled=true;try{const r=await api('order',{client_id:crypto.randomUUID(),mode:state.mode,key:selected,side,lots:Number($('lots').value),price:Number($('price').value),confirm:$('live-confirm').value});$('live-confirm').value='';toast('Order '+r.order.status.toLowerCase()+(r.order.status==='UNKNOWN'?' — reconcile before another live order.':'.'),r.order.status==='UNKNOWN');}finally{busy=false;render(state);}});};
+$('order-form').onsubmit=e=>{e.preventDefault();if(busy)return;perform(async()=>{busy=true;$('place-order').disabled=true;try{const r=await api('order',{client_id:crypto.randomUUID(),mode:state.mode,key:selected,side,lots:Number($('lots').value),price:Number($('price').value)});toast('Order '+r.order.status.toLowerCase()+(r.order.status==='UNKNOWN'?' — reconcile before another live order.':'.'),r.order.status==='UNKNOWN');}finally{busy=false;render(state);}});};
 let strategyAction='';
 function renderStrategy(s) {
   document.querySelector('.strategy-value').textContent=s.enabled?'Running':'Paused';
@@ -160,13 +159,13 @@ function renderStrategy(s) {
   document.querySelector('.heatmap-panel .panel-foot').innerHTML='<span><i class="amber-dot"></i> Heatmap: straddle points · independent leg stops · 2% limit buffer · fees excluded</span><span>'+(s.tranches.some(t=>t.startup)?'* First dry tranche uses its actual startup time. ':'')+'Best SL is hindsight, never an entry signal</span>';
   document.querySelector('footer>span:last-child').textContent='v0.1 · TBS configured';
 }
-function liveStrategyDialog(action){strategyAction=action;$('strategy-confirm').value='';$('strategy-confirm-action').hidden=false;$('strategy-confirm-label').hidden=false;$('strategy-confirm-action').textContent=action==='strategy'?'Start live TBS':'Exit live TBS';$('strategy-dialog').showModal();}
-$('strategy-info').onclick=()=>{$('strategy-confirm-action').hidden=true;$('strategy-confirm-label').hidden=true;$('strategy-dialog').showModal();};
+function liveStrategyDialog(action){strategyAction=action;$('strategy-confirm-action').hidden=false;$('strategy-confirm-action').textContent=action==='strategy'?'Start live TBS':'Exit live TBS';$('strategy-dialog').showModal();}
+$('strategy-info').onclick=()=>{$('strategy-confirm-action').hidden=true;$('strategy-dialog').showModal();};
 $('strategy-start').onclick=()=>state.mode==='live'?liveStrategyDialog('strategy'):perform(()=>api('strategy'));
 $('strategy-pause').onclick=()=>perform(()=>api('strategy-pause'));
 $('strategy-exit').onclick=()=>state.mode==='live'?liveStrategyDialog('strategy-exit'):perform(()=>api('strategy-exit'));
 $('strategy-demo-entry').onclick=()=>perform(()=>api('strategy-demo-entry'));
-$('strategy-confirm-action').onclick=()=>perform(async()=>{await api(strategyAction,{confirm:$('strategy-confirm').value});$('strategy-dialog').close();});
+$('strategy-confirm-action').onclick=()=>perform(async()=>{await api(strategyAction,{});$('strategy-dialog').close();});
 heatmap();
 perform(async()=>{const r=await fetch('/api/bootstrap').then(r=>r.json());token=r.token;render(r.state);connectStream();if(r.state.authenticated&&!r.state.contracts.length)await loadExpiries();});
 
